@@ -59,3 +59,46 @@ export async function elementInFixedWidget() {
   const sel = await p;
   return clipMatchesTarget(el, sel);
 }
+
+// #4 有横向滚动条时，整页分块必须按去掉滚动条后的可视高度，clip 不含滚动条
+export async function pageTilesExcludeScrollbars() {
+  const sel = await w2pSend({ type: 'w2p:select', mode: 'page' });
+  await w2pSend({ type: 'w2p:restore' });
+  const de = document.documentElement;
+  const t = sel.job.tiles;
+  const bad = t.filter((x) => x.clip.y + x.clip.h > de.clientHeight || x.clip.w > de.clientWidth);
+  return { pass: bad.length === 0, detail: { clientH: de.clientHeight, innerH: innerHeight, clientW: de.clientWidth, first: t[0], bad: bad.length } };
+}
+
+// #5 内部滚动容器设置了 scroll-behavior: smooth 时，每一步也要立刻滚到位
+export async function innerScrollIgnoresSmooth() {
+  const box = document.querySelector('.box');
+  box.style.scrollBehavior = 'smooth';
+  const p = w2pSend({ type: 'w2p:select', mode: 'element' });
+  await sleep(50);
+  const r = box.getBoundingClientRect();
+  window.dispatchEvent(new MouseEvent('mousemove', { clientX: r.left + 2, clientY: Math.max(r.top, 0) + 300 }));
+  const root = shadow();
+  for (let i = 0; i < 5 && !root.querySelector('.label').textContent.startsWith('div.box'); i++) window.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, cancelable: true }));
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+  const sel = await p;
+  const off = [];
+  for (let i = 0; i < sel.job.tiles.length; i++) {
+    await w2pSend({ type: 'w2p:step', index: i });
+    if (Math.abs(box.scrollTop - sel.job.tiles[i].innerScroll) > 1) off.push([i, box.scrollTop, sel.job.tiles[i].innerScroll]);
+  }
+  await w2pSend({ type: 'w2p:restore' });
+  box.style.scrollBehavior = '';
+  return { pass: off.length === 0, detail: { tiles: sel.job.tiles.length, off } };
+}
+
+// #6 页面滚不到计划位置时，step 返回按实际滚动位置修正后的 clip
+export async function stepReportsActualScroll() {
+  const max = document.scrollingElement.scrollHeight - document.documentElement.clientHeight;
+  const job = { tiles: [{ pageScroll: max + 50, innerScroll: null, clip: { x: 0, y: 0, w: 100, h: 100 }, destY: 0 }], width: 100, height: 100, viewportW: innerWidth };
+  await w2pSend({ type: 'w2p:select', mode: 'visible' });
+  window.__w2p.setJob(job, {});
+  const res = await w2pSend({ type: 'w2p:step', index: 0 });
+  await w2pSend({ type: 'w2p:restore' });
+  return { pass: res?.clip?.y === 50, detail: res };
+}

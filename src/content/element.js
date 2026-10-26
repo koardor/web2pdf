@@ -129,8 +129,8 @@
   function viewportJob(el) {
     const r = el.getBoundingClientRect();
     const x = Math.max(0, r.left), y = Math.max(0, r.top);
-    const w = Math.max(1, Math.min(innerWidth, r.right) - x);
-    const h = Math.max(1, Math.min(innerHeight, r.bottom) - y);
+    const w = Math.max(1, Math.min(W.viewW(), r.right) - x);
+    const h = Math.max(1, Math.min(W.viewH(), r.bottom) - y);
     return { tiles: [{ pageScroll: null, innerScroll: null, clip: { x, y, w, h }, destY: 0 }], width: w, height: h, viewportW: innerWidth, hideFixedFrom: 0 };
   }
 
@@ -138,26 +138,27 @@
   // 在 fixed 容器里时页面滚动不起作用，只截屏幕上看得到的那一段窗口
   function innerJob(el, fixed) {
     const H = document.scrollingElement.scrollHeight;
-    const pageMax = Math.max(0, H - innerHeight);
+    const pageMax = Math.max(0, H - W.viewH());
     const r = el.getBoundingClientRect();
     const cTop = r.top + el.clientTop;
     const cLeft = r.left + el.clientLeft;
     const cH = el.clientHeight;
     const docTop = cTop + scrollY;
-    const fits = fixed || (cTop >= 0 && cTop + cH <= innerHeight);
+    const fits = fixed || (cTop >= 0 && cTop + cH <= W.viewH());
     const page0 = fits ? scrollY : Math.max(0, Math.min(docTop, pageMax));
     const wTop = docTop - page0;
-    const vh = Math.max(1, Math.min(cH, innerHeight - wTop));
+    const vh = Math.max(1, Math.min(cH, W.viewH() - wTop));
     const innerMax = el.scrollHeight - cH;
     const vx = Math.max(0, cLeft);
-    const width = Math.max(1, Math.min(innerWidth, cLeft + el.clientWidth) - vx);
-    const height = Math.min(el.scrollHeight, Web2pdf.MAX_TOTAL_HEIGHT);
+    const width = Math.max(1, Math.min(W.viewW(), cLeft + el.clientWidth) - vx);
+    const reach = fixed ? Math.min(innerMax + vh, el.scrollHeight) : el.scrollHeight;
+    const height = Math.min(reach, Web2pdf.MAX_TOTAL_HEIGHT);
 
     const tiles = Web2pdf.planTiles({ top: 0, height: Math.min(innerMax + vh, el.scrollHeight), viewportHeight: vh, scrollMax: innerMax })
       .map((t) => ({ pageScroll: page0, innerScroll: t.scroll, clip: { x: vx, y: wTop + t.offsetInView, w: width, h: t.h }, destY: t.destY }));
     if (!fixed && cH > vh) {
       const done = innerMax + vh;
-      Web2pdf.planTiles({ top: docTop + vh, height: cH - vh, viewportHeight: innerHeight, scrollMax: pageMax }).forEach((t) =>
+      Web2pdf.planTiles({ top: docTop + vh, height: cH - vh, viewportHeight: W.viewH(), scrollMax: pageMax }).forEach((t) =>
         tiles.push({ pageScroll: t.scroll, innerScroll: innerMax, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: done + t.destY }));
     }
     // 总高度上限：丢掉超出的块，最后一块截短

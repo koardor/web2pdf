@@ -13,6 +13,10 @@
   let hiddenDone = false;
   let progressEl = null;
 
+  // 可视区域（不含滚动条）。innerWidth/innerHeight 含滚动条，只用来算截图缩放比例
+  const viewW = () => document.documentElement.clientWidth;
+  const viewH = () => document.documentElement.clientHeight;
+
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -73,7 +77,7 @@
     hiddenDone = false;
     document.querySelectorAll(`[${MARK}]`).forEach((el) => el.remove());
     progressEl = null;
-    if (ctx.innerEl && saved?.innerTop != null) ctx.innerEl.scrollTop = saved.innerTop;
+    if (ctx.innerEl && saved?.innerTop != null) ctx.innerEl.scrollTo({ top: saved.innerTop, behavior: 'instant' });
     if (saved) window.scrollTo({ left: saved.x, top: saved.y, behavior: 'instant' });
     job = null;
     ctx = { innerEl: null, target: null };
@@ -81,19 +85,19 @@
 
   // 可见区域：当前视口一块
   registerMode('visible', async () => ({
-    tiles: [{ pageScroll: window.scrollY, innerScroll: null, clip: { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }, destY: 0 }],
-    width: window.innerWidth,
-    height: window.innerHeight,
+    tiles: [{ pageScroll: window.scrollY, innerScroll: null, clip: { x: 0, y: 0, w: viewW(), h: viewH() }, destY: 0 }],
+    width: viewW(),
+    height: viewH(),
     viewportW: window.innerWidth,
   }));
 
   // 整个网页：只滚动文档本身，从顶到底
   registerMode('page', async () => {
     const H = document.scrollingElement.scrollHeight;
-    const V = window.innerHeight;
+    const V = viewH();
     const tiles = Web2pdf.planTiles({ top: 0, height: H, viewportHeight: V, scrollMax: Math.max(0, H - V) })
-      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: 0, y: t.offsetInView, w: window.innerWidth, h: t.h }, destY: t.destY }));
-    return { tiles, width: window.innerWidth, height: Math.min(H, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth };
+      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: 0, y: t.offsetInView, w: viewW(), h: t.h }, destY: t.destY }));
+    return { tiles, width: viewW(), height: Math.min(H, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth };
   });
 
   // 文档坐标的矩形 → 靠滚动页面分块截取的计划；横向截到视口内。
@@ -101,12 +105,12 @@
   function pageRectJob(sel, { keepView = false } = {}) {
     const H = document.scrollingElement.scrollHeight;
     const vx = Math.max(0, sel.x - window.scrollX);
-    const vr = Math.min(window.innerWidth, sel.x - window.scrollX + sel.w);
+    const vr = Math.min(viewW(), sel.x - window.scrollX + sel.w);
     const top = Math.max(0, sel.y);
     const height = Math.max(0, Math.min(H, sel.y + sel.h) - top);
     const width = Math.max(1, vr - vx);
     const tiles = Web2pdf.planTiles({
-      top, height, viewportHeight: window.innerHeight, scrollMax: Math.max(0, H - window.innerHeight),
+      top, height, viewportHeight: viewH(), scrollMax: Math.max(0, H - viewH()),
       startScroll: keepView ? window.scrollY : null,
     }).map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: t.destY }));
     return { tiles, width, height: Math.min(height, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth, hideFixedFrom: keepView ? 1 : 0 };
@@ -132,11 +136,16 @@
     // 整页第一块保留顶栏；区域/元素从第一块起就隐藏，免得顶栏盖住选中的内容
     if (index >= (job.hideFixedFrom ?? 1)) hideFixed(ctx.target);
     if (tile.pageScroll != null) window.scrollTo({ left: saved.x, top: tile.pageScroll, behavior: 'instant' });
-    if (ctx.innerEl && tile.innerScroll != null) ctx.innerEl.scrollTop = tile.innerScroll;
+    // 用 instant，避免页面给滚动容器设置的 scroll-behavior: smooth 让截图截在动画中途
+    if (ctx.innerEl && tile.innerScroll != null) ctx.innerEl.scrollTo({ top: tile.innerScroll, behavior: 'instant' });
     await nextFrame();
     await nextFrame();
     await sleep(SETTLE_MS);
-    return { ok: true };
+    // 浏览器可能滚不到计划的位置（到底、小数缩放取整、吸附滚动），按实际位置修正裁剪框
+    let dy = 0;
+    if (tile.pageScroll != null) dy += tile.pageScroll - window.scrollY;
+    if (ctx.innerEl && tile.innerScroll != null) dy += tile.innerScroll - ctx.innerEl.scrollTop;
+    return { ok: true, clip: { ...tile.clip, y: tile.clip.y + dy } };
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
@@ -153,5 +162,5 @@
     return true;
   });
 
-  window.__w2p = { registerMode, setJob, hideFixed, restore, pageRectJob, MARK };
+  window.__w2p = { registerMode, setJob, hideFixed, restore, pageRectJob, viewW, viewH, MARK };
 })();

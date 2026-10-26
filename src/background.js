@@ -93,11 +93,11 @@ async function startCapture(tabId, mode, format) {
     await toOffscreen({ type: 'w2p:compose-begin', width, height, format });
     for (let i = 0; i < tiles.length; i++) {
       if (watch.aborted) throw new Error('aborted');
-      await toTab(tabId, { type: 'w2p:step', index: i });
+      const stepped = await toTab(tabId, { type: 'w2p:step', index: i });
       const current = await chrome.tabs.get(tabId);
       if (!current.active || watch.aborted) throw new Error('aborted');
       const dataUrl = await captureThrottled(tab.windowId);
-      await toOffscreen({ type: 'w2p:compose-tile', dataUrl, clip: tiles[i].clip, destY: tiles[i].destY, viewportW });
+      await toOffscreen({ type: 'w2p:compose-tile', dataUrl, clip: stepped.clip || tiles[i].clip, destY: tiles[i].destY, viewportW });
       if (tiles.length > 1) await toTab(tabId, { type: 'w2p:progress', done: i + 1, total: tiles.length });
     }
     await toTab(tabId, { type: 'w2p:restore' });

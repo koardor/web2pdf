@@ -136,3 +136,16 @@ test('popup start replies unsupported for browser pages', async () => {
   const res = await new Promise((resolve) => chrome.runtime.onMessage.fns[0]({ type: 'w2p:start', mode: 'page', format: 'pdf', tabId: 7 }, {}, resolve));
   assert.deepStrictEqual({ ...res }, { ok: false, error: 'unsupported' });
 });
+
+test('uses the clip returned by step (actual scroll position)', async () => {
+  const { ctx, chrome, log } = load({ tiles: 1 });
+  const sent = [];
+  const orig = chrome.runtime.sendMessage;
+  chrome.runtime.sendMessage = async (msg) => { if (msg.type === 'w2p:compose-tile') sent.push(msg.clip); return orig(msg); };
+  const origTab = chrome.tabs.sendMessage;
+  chrome.tabs.sendMessage = async (id, msg) => (msg.type === 'w2p:step'
+    ? { ok: true, clip: { x: 0, y: 7, w: 10, h: 100 } } : origTab(id, msg));
+  await ctx.startCapture(7, 'page', 'png');
+  assert.strictEqual(sent[0].y, 7);
+  assert.ok(log.length > 0);
+});
