@@ -164,7 +164,10 @@
       function finish(ok) {
         const sel = ok && r ? rect() : null;
         cleanup();
-        resolve(sel ? buildJob(sel) : null);
+        if (!sel) { resolve(null); return; }
+        const job = W.pageRectJob(sel);
+        W.setJob(job, { target: null });
+        resolve(job);
       }
 
       layer.addEventListener('mousedown', (e) => { if (e.button === 0) startDrag(e, null); });
@@ -178,21 +181,6 @@
       window.addEventListener('keydown', onKey, true);
       render();
     });
-  }
-
-  // 选区（文档坐标）→ 分块计划；横向截到视口内
-  function buildJob(sel) {
-    const H = document.scrollingElement.scrollHeight;
-    const vx = Math.max(0, sel.x - scrollX);
-    const vr = Math.min(innerWidth, sel.x - scrollX + sel.w);
-    const top = Math.max(0, sel.y);
-    const height = Math.min(H, sel.y + sel.h) - top;
-    const width = Math.max(1, vr - vx);
-    const tiles = Web2pdf.planTiles({ top, height, viewportHeight: innerHeight, scrollMax: Math.max(0, H - innerHeight) })
-      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: t.destY }));
-    const job = { tiles, width, height: Math.min(height, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: innerWidth, hideFixedFrom: 0 };
-    W.setJob(job, { target: null });
-    return job;
   }
 
   W.registerMode('region', selectRegion);

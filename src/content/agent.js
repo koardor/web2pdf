@@ -96,6 +96,19 @@
     return { tiles, width: window.innerWidth, height: Math.min(H, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth };
   });
 
+  // 文档坐标的矩形 → 靠滚动页面分块截取的计划；横向截到视口内
+  function pageRectJob(sel) {
+    const H = document.scrollingElement.scrollHeight;
+    const vx = Math.max(0, sel.x - window.scrollX);
+    const vr = Math.min(window.innerWidth, sel.x - window.scrollX + sel.w);
+    const top = Math.max(0, sel.y);
+    const height = Math.max(0, Math.min(H, sel.y + sel.h) - top);
+    const width = Math.max(1, vr - vx);
+    const tiles = Web2pdf.planTiles({ top, height, viewportHeight: window.innerHeight, scrollMax: Math.max(0, H - window.innerHeight) })
+      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: t.destY }));
+    return { tiles, width, height: Math.min(height, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth, hideFixedFrom: 0 };
+  }
+
   async function select(mode) {
     restore();
     saved = { x: window.scrollX, y: window.scrollY, innerTop: null };
@@ -137,5 +150,5 @@
     return true;
   });
 
-  window.__w2p = { registerMode, setJob, hideFixed, restore, MARK };
+  window.__w2p = { registerMode, setJob, hideFixed, restore, pageRectJob, MARK };
 })();
