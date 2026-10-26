@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>long fixed header</title>
+<style>
+body{margin:0;font:16px system-ui}
+header{position:fixed;top:0;left:0;right:0;height:56px;background:#111827;color:#fff;display:flex;align-items:center;padding:0 16px;z-index:10}
+main{padding-top:56px}
+h2{position:sticky;top:56px;margin:0;padding:8px 16px;background:#fde68a}
+.band{height:500px;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:700;color:#fff;text-shadow:0 2px 4px #0006}
+</style></head>
+<body>
+<header>固定顶栏（只应出现一次）</header>
+<main>
+<h2>第一节（sticky 标题）</h2>
+<div class="band" style="background:hsl(0 70% 60%)">1</div>
+<div class="band" style="background:hsl(37 70% 60%)">2</div>
+<div class="band" style="background:hsl(74 70% 60%)">3</div>
+<div class="band" style="background:hsl(111 70% 60%)">4</div>
+<div class="band" style="background:hsl(148 70% 60%)">5</div>
+<div class="band" style="background:hsl(185 70% 60%)">6</div>
+<h2>第二节（sticky 标题）</h2>
+<div class="band" style="background:hsl(0 70% 60%)">7</div>
+<div class="band" style="background:hsl(37 70% 60%)">8</div>
+<div class="band" style="background:hsl(74 70% 60%)">9</div>
+<div class="band" style="background:hsl(111 70% 60%)">10</div>
+<div class="band" style="background:hsl(148 70% 60%)">11</div>
+<div class="band" style="background:hsl(185 70% 60%)">12</div>
+</main></body></html>

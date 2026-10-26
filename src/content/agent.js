@@ -26,12 +26,13 @@
     if (ctx.innerEl) saved.innerTop = ctx.innerEl.scrollTop;
   }
 
-  function hideEl(el) {
-    hidden.push([el, el.style.getPropertyValue('visibility'), el.style.getPropertyPriority('visibility')]);
-    el.style.setProperty('visibility', 'hidden', 'important');
+  function override(el, prop, value) {
+    hidden.push([el, prop, el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)]);
+    el.style.setProperty(prop, value, 'important');
   }
 
-  // 隐藏 fixed / sticky 元素，但不能隐藏目标本身或它的祖先
+  // fixed 元素隐藏；sticky 元素改成 static（留在原位，不再跟着滚动重复出现）。
+  // 目标本身和它的祖先不动，否则会把要截的内容一起藏掉
   function hideFixed(target) {
     if (hiddenDone) return;
     hiddenDone = true;
@@ -39,13 +40,8 @@
       if (el.hasAttribute(MARK)) continue;
       if (target && el.contains(target)) continue;
       const pos = getComputedStyle(el).position;
-      if (pos === 'fixed' || pos === 'sticky') hideEl(el);
-    }
-    // 内部滚动元素里的 sticky 后代（如日期头），否则每块都会重复
-    if (ctx.innerEl) {
-      for (const el of ctx.innerEl.querySelectorAll('*')) {
-        if (getComputedStyle(el).position === 'sticky' && !el.contains(target)) hideEl(el);
-      }
+      if (pos === 'fixed') override(el, 'visibility', 'hidden');
+      else if (pos === 'sticky') override(el, 'position', 'static');
     }
   }
 
@@ -69,9 +65,9 @@
   }
 
   function restore() {
-    hidden.forEach(([el, value, priority]) => {
-      if (value) el.style.setProperty('visibility', value, priority);
-      else el.style.removeProperty('visibility');
+    hidden.reverse().forEach(([el, prop, value, priority]) => {
+      if (value) el.style.setProperty(prop, value, priority);
+      else el.style.removeProperty(prop);
     });
     hidden = [];
     hiddenDone = false;
@@ -90,6 +86,15 @@
     height: window.innerHeight,
     viewportW: window.innerWidth,
   }));
+
+  // 整个网页：只滚动文档本身，从顶到底
+  registerMode('page', async () => {
+    const H = document.scrollingElement.scrollHeight;
+    const V = window.innerHeight;
+    const tiles = Web2pdf.planTiles({ top: 0, height: H, viewportHeight: V, scrollMax: Math.max(0, H - V) })
+      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: 0, y: t.offsetInView, w: window.innerWidth, h: t.h }, destY: t.destY }));
+    return { tiles, width: window.innerWidth, height: Math.min(H, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth };
+  });
 
   async function select(mode) {
     restore();
