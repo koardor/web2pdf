@@ -28,9 +28,11 @@
   window.runPage = async ({ total, vw = 400, vh = 300, scale = 1, format }) => {
     const tiles = Web2pdf.planTiles({ top: 0, height: total, viewportHeight: vh, scrollMax: Math.max(0, total - vh) });
     await send({ type: 'w2p:compose-begin', width: vw, height: Math.min(total, Web2pdf.MAX_TOTAL_HEIGHT), format });
+    window.maxLive = 0;
     for (const t of tiles) {
-      await send({ type: 'w2p:compose-tile', dataUrl: fakeShot(vw, vh, scale, t.scroll),
+      const r = await send({ type: 'w2p:compose-tile', dataUrl: fakeShot(vw, vh, scale, t.scroll),
         clip: { x: 0, y: t.offsetInView, w: vw, h: t.h }, destY: t.destY, viewportW: vw });
+      window.maxLive = Math.max(window.maxLive, r.live ?? Infinity);
     }
     const res = await send({ type: 'w2p:compose-end' });
     const out = [];

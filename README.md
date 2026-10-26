@@ -45,6 +45,9 @@ node tools/make-icons.js # 重新生成图标
 - [ ] `test/pages/huge.html`：整页 PNG 与 PDF 各拆成多个 `_partN` 文件，衔接处色带连续，PDF 能在 Edge 打开。
 - [ ] `test/pages/chat.html`：选择元素点消息列表 → 消息 1–200 全部在、不重复，日期头不重复，周围不是空白；整页模式只截一屏。
 - [ ] `test/pages/tall-scroller.html`：选择元素选紫框 → 行 1–60 全部在。
+- [ ] `test/pages/fixed-widget.html`：页面滚动到中间后，选择元素点右侧小部件里的"卡片 B" → 截到的正是卡片 B。
+- [ ] `test/pages/wide.html`（有横向滚动条）：整页 → 色带 1–6 连续，底部没有滚动条条纹。
+- [ ] `chat.html` 上用选择区域框一块消息 → 内容正常（不是空白），"确认/取消"按钮和手柄都能用鼠标点。
 - [ ] 截 `huge.html` 整页过程中点浏览器后退或关闭标签 → 无下载，图标出现红色 `!`。
 - [ ] 四个快捷键各试一次。
 - [ ] 浏览器缩放 125% 下整页截 `long-fixed-header.html`，拼接处无缝隙。
