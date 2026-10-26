@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>compose harness</title>
+<!-- 在浏览器里直接验证 offscreen 拼接：用假的 chrome API 喂入合成的截图块 -->
+<script>
+  window.__listeners = [];
+  window.chrome = { runtime: { onMessage: { addListener: (fn) => window.__listeners.push(fn) } } };
+  window.send = (msg) => new Promise((resolve) => window.__listeners[0]({ ...msg, target: 'offscreen' }, {}, resolve));
+</script>
+<script src="../../vendor/jspdf.umd.min.js"></script>
+<script src="../../src/lib/tiles.js"></script>
+<script src="../../src/offscreen/offscreen.js"></script>
+<script>
+  // 生成一块"视口截图"：scale 倍像素，纵向色带 + 数字，内容对应文档的 [scroll, scroll+vh)
+  window.fakeShot = (vw, vh, scale, scroll) => {
+    const c = document.createElement('canvas');
+    c.width = Math.round(vw * scale); c.height = Math.round(vh * scale);
+    const g = c.getContext('2d');
+    g.scale(scale, scale);
+    for (let y = Math.floor(scroll / 100) * 100; y < scroll + vh; y += 100) {
+      g.fillStyle = (y / 100) % 2 ? '#3b82f6' : '#f59e0b';
+      g.fillRect(0, y - scroll, vw, 100);
+      g.fillStyle = '#000'; g.font = '40px sans-serif'; g.fillText(String(y / 100), 20, y - scroll + 60);
+    }
+    return c.toDataURL('image/png');
+  };
+  // 按 planTiles 的结果跑一遍完整流程，返回生成的文件
+  window.runPage = async ({ total, vw = 400, vh = 300, scale = 1, format }) => {
+    const tiles = Web2pdf.planTiles({ top: 0, height: total, viewportHeight: vh, scrollMax: Math.max(0, total - vh) });
+    await send({ type: 'w2p:compose-begin', width: vw, height: Math.min(total, Web2pdf.MAX_TOTAL_HEIGHT), format });
+    for (const t of tiles) {
+      await send({ type: 'w2p:compose-tile', dataUrl: fakeShot(vw, vh, scale, t.scroll),
+        clip: { x: 0, y: t.offsetInView, w: vw, h: t.h }, destY: t.destY, viewportW: vw });
+    }
+    const res = await send({ type: 'w2p:compose-end' });
+    const out = [];
+    for (const f of res.files) {
+      const blob = await fetch(f.url).then((r) => r.blob());
+      out.push({ part: f.part, type: blob.type, size: blob.size, url: f.url });
+    }
+    return out;
+  };
+</script>
+<body></body>

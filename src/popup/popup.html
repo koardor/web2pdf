@@ -1,3 +1,22 @@
 <!doctype html>
+<html lang="zh-CN">
+<head>
 <meta charset="utf-8">
-<p>网页截图</p>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="modes">
+    <button data-mode="visible">可见区域<kbd>Alt+Shift+V</kbd></button>
+    <button data-mode="page">整个网页<kbd>Alt+Shift+F</kbd></button>
+    <button data-mode="region">选择区域<kbd>Alt+Shift+S</kbd></button>
+    <button data-mode="element">选择元素<kbd>Alt+Shift+E</kbd></button>
+  </div>
+  <fieldset class="formats">
+    <label><input type="radio" name="format" value="pdf">PDF</label>
+    <label><input type="radio" name="format" value="png">PNG</label>
+    <label><input type="radio" name="format" value="jpeg">JPEG</label>
+  </fieldset>
+  <p class="msg" hidden></p>
+  <script src="popup.js"></script>
+</body>
+</html>
