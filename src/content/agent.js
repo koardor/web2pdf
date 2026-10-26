@@ -113,7 +113,8 @@
   async function step(index) {
     const tile = job.tiles[index];
     hideProgress();
-    if (index > 0) hideFixed(ctx.target);
+    // 整页第一块保留顶栏；区域/元素从第一块起就隐藏，免得顶栏盖住选中的内容
+    if (index >= (job.hideFixedFrom ?? 1)) hideFixed(ctx.target);
     if (tile.pageScroll != null) window.scrollTo({ left: saved.x, top: tile.pageScroll, behavior: 'instant' });
     if (ctx.innerEl && tile.innerScroll != null) ctx.innerEl.scrollTop = tile.innerScroll;
     await nextFrame();
