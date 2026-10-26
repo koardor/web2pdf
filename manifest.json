@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "web2pdf 网页截图",
+  "version": "0.1.0",
+  "description": "把网页截图保存为 PDF / PNG / JPEG：可见区域、整个网页、选择区域、选择元素。",
+  "permissions": ["activeTab", "scripting", "downloads", "storage", "offscreen"],
+  "background": { "service_worker": "src/background.js" },
+  "action": {
+    "default_title": "网页截图",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "commands": {
+    "capture-visible": { "suggested_key": { "default": "Alt+Shift+V" }, "description": "截取可见区域" },
+    "capture-page": { "suggested_key": { "default": "Alt+Shift+F" }, "description": "截取整个网页" },
+    "capture-region": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "选择区域截图" },
+    "capture-element": { "suggested_key": { "default": "Alt+Shift+E" }, "description": "选择元素截图" }
+  }
+}
