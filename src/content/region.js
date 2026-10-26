@@ -10,14 +10,14 @@
   const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
   const CSS = `
-    :host { all: initial; }
+    :host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
     [hidden] { display: none !important; }
-    .dim { position: fixed; background: rgba(0,0,0,.4); pointer-events: none; }
-    .layer { position: fixed; inset: 0; cursor: crosshair; z-index: 2147483647; }
+    .dim { position: fixed; z-index: 1; background: rgba(0,0,0,.4); pointer-events: none; }
+    .layer { position: fixed; inset: 0; cursor: crosshair; z-index: 0; pointer-events: auto; }
     .layer.idle { background: rgba(0,0,0,.25); }
-    .hint { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 6px;
+    .hint { position: fixed; z-index: 3; top: 12px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 6px;
       background: rgba(17,24,39,.9); color: #fff; font: 13px/1.4 system-ui, "Microsoft YaHei", sans-serif; pointer-events: none; white-space: nowrap; }
-    .box { position: fixed; outline: 2px solid #3b82f6; pointer-events: none; }
+    .box { position: fixed; z-index: 2; outline: 2px solid #3b82f6; pointer-events: none; }
     .size { position: absolute; left: 0; top: -24px; padding: 2px 6px; border-radius: 4px; background: #3b82f6; color: #fff;
       font: 12px/1.4 system-ui, sans-serif; white-space: nowrap; }
     .handle { position: absolute; width: 10px; height: 10px; margin: -6px 0 0 -6px; background: #fff; border: 1px solid #3b82f6; pointer-events: auto; }
@@ -25,7 +25,7 @@
     .handle[data-h=ne], .handle[data-h=sw] { cursor: nesw-resize; }
     .handle[data-h=n], .handle[data-h=s] { cursor: ns-resize; }
     .handle[data-h=e], .handle[data-h=w] { cursor: ew-resize; }
-    .bar { position: fixed; display: flex; gap: 6px; }
+    .bar { position: fixed; z-index: 3; display: flex; gap: 6px; pointer-events: auto; }
     .bar button { padding: 5px 12px; border: 0; border-radius: 4px; font: 13px system-ui, "Microsoft YaHei", sans-serif; cursor: pointer; }
     .ok { background: #2563eb; color: #fff; }
     .cancel { background: #fff; color: #111827; }
@@ -165,7 +165,7 @@
         const sel = ok && r ? rect() : null;
         cleanup();
         if (!sel) { resolve(null); return; }
-        const job = W.pageRectJob(sel);
+        const job = W.pageRectJob(sel, { keepView: true });
         W.setJob(job, { target: null });
         resolve(job);
       }

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>fixed widget</title>
+<style>
+body{margin:0;font:16px system-ui}
+.page{height:4000px;padding:16px;background:linear-gradient(#fef3c7,#dbeafe)}
+.widget{position:fixed;right:24px;top:120px;width:300px;background:#fff;border:2px solid #10b981;border-radius:8px;padding:12px;z-index:5}
+.card{height:80px;margin:8px 0;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:22px}
+</style></head>
+<body>
+<div class="page">页面本身可以滚动（4000px），右侧是 fixed 小部件</div>
+<div class="widget">
+  <div class="card">卡片 A</div>
+  <div class="card" id="target">卡片 B</div>
+  <div class="card">卡片 C</div>
+</div>
+</body></html>

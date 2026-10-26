@@ -20,6 +20,14 @@
     return ['auto', 'scroll', 'overlay'].includes(getComputedStyle(el).overflowY);
   }
 
+  // 自身或祖先是 fixed：滚动页面不会移动它
+  function inFixed(el) {
+    for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+      if (getComputedStyle(n).position === 'fixed') return true;
+    }
+    return false;
+  }
+
   function describe(el) {
     const cls = typeof el.className === 'string' && el.className.trim() ? `.${el.className.trim().split(/\s+/)[0]}` : '';
     const id = el.id ? `#${el.id}` : '';
@@ -104,7 +112,8 @@
         if (!ok || !current) { resolve(null); return; }
         const el = current;
         const inner = isInnerScroller(el);
-        const job = inner ? innerJob(el) : W.pageRectJob(docRect(el));
+        const fixed = inFixed(el);
+        const job = inner ? innerJob(el, fixed) : fixed ? viewportJob(el) : W.pageRectJob(docRect(el));
         W.setJob(job, { innerEl: inner ? el : null, target: el });
         resolve(job);
       }
@@ -116,8 +125,18 @@
     return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height };
   }
 
-  // 内部滚动元素：先滚动元素内部；元素比视口高时，内部滚到底后再滚动页面截剩下的部分
-  function innerJob(el) {
+  // fixed 容器里的普通元素：原地截一块，不滚动页面
+  function viewportJob(el) {
+    const r = el.getBoundingClientRect();
+    const x = Math.max(0, r.left), y = Math.max(0, r.top);
+    const w = Math.max(1, Math.min(innerWidth, r.right) - x);
+    const h = Math.max(1, Math.min(innerHeight, r.bottom) - y);
+    return { tiles: [{ pageScroll: null, innerScroll: null, clip: { x, y, w, h }, destY: 0 }], width: w, height: h, viewportW: innerWidth, hideFixedFrom: 0 };
+  }
+
+  // 内部滚动元素：先滚动元素内部；元素比视口高时，内部滚到底后再滚动页面截剩下的部分。
+  // 在 fixed 容器里时页面滚动不起作用，只截屏幕上看得到的那一段窗口
+  function innerJob(el, fixed) {
     const H = document.scrollingElement.scrollHeight;
     const pageMax = Math.max(0, H - innerHeight);
     const r = el.getBoundingClientRect();
@@ -125,7 +144,7 @@
     const cLeft = r.left + el.clientLeft;
     const cH = el.clientHeight;
     const docTop = cTop + scrollY;
-    const fits = cTop >= 0 && cTop + cH <= innerHeight;
+    const fits = fixed || (cTop >= 0 && cTop + cH <= innerHeight);
     const page0 = fits ? scrollY : Math.max(0, Math.min(docTop, pageMax));
     const wTop = docTop - page0;
     const vh = Math.max(1, Math.min(cH, innerHeight - wTop));
@@ -136,7 +155,7 @@
 
     const tiles = Web2pdf.planTiles({ top: 0, height: Math.min(innerMax + vh, el.scrollHeight), viewportHeight: vh, scrollMax: innerMax })
       .map((t) => ({ pageScroll: page0, innerScroll: t.scroll, clip: { x: vx, y: wTop + t.offsetInView, w: width, h: t.h }, destY: t.destY }));
-    if (cH > vh) {
+    if (!fixed && cH > vh) {
       const done = innerMax + vh;
       Web2pdf.planTiles({ top: docTop + vh, height: cH - vh, viewportHeight: innerHeight, scrollMax: pageMax }).forEach((t) =>
         tiles.push({ pageScroll: t.scroll, innerScroll: innerMax, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: done + t.destY }));

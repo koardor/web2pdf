@@ -96,17 +96,20 @@
     return { tiles, width: window.innerWidth, height: Math.min(H, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth };
   });
 
-  // 文档坐标的矩形 → 靠滚动页面分块截取的计划；横向截到视口内
-  function pageRectJob(sel) {
+  // 文档坐标的矩形 → 靠滚动页面分块截取的计划；横向截到视口内。
+  // keepView（区域模式）：顶部已在屏幕上就不动页面，固定元素同整页一样从第二块起才隐藏
+  function pageRectJob(sel, { keepView = false } = {}) {
     const H = document.scrollingElement.scrollHeight;
     const vx = Math.max(0, sel.x - window.scrollX);
     const vr = Math.min(window.innerWidth, sel.x - window.scrollX + sel.w);
     const top = Math.max(0, sel.y);
     const height = Math.max(0, Math.min(H, sel.y + sel.h) - top);
     const width = Math.max(1, vr - vx);
-    const tiles = Web2pdf.planTiles({ top, height, viewportHeight: window.innerHeight, scrollMax: Math.max(0, H - window.innerHeight) })
-      .map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: t.destY }));
-    return { tiles, width, height: Math.min(height, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth, hideFixedFrom: 0 };
+    const tiles = Web2pdf.planTiles({
+      top, height, viewportHeight: window.innerHeight, scrollMax: Math.max(0, H - window.innerHeight),
+      startScroll: keepView ? window.scrollY : null,
+    }).map((t) => ({ pageScroll: t.scroll, innerScroll: null, clip: { x: vx, y: t.offsetInView, w: width, h: t.h }, destY: t.destY }));
+    return { tiles, width, height: Math.min(height, Web2pdf.MAX_TOTAL_HEIGHT), viewportW: window.innerWidth, hideFixedFrom: keepView ? 1 : 0 };
   }
 
   async function select(mode) {

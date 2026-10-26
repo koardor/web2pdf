@@ -32,3 +32,12 @@ test('no seams at 1.25x', () => {
   const a = tileDrawRect(0, 333, 1.25), b = tileDrawRect(333, 333, 1.25);
   assert.strictEqual(a.dy + a.dh, b.dy);
 });
+test('startScroll keeps current view for first tile', () => assert.deepStrictEqual(
+  planTiles({ top: 300, height: 500, viewportHeight: 1000, scrollMax: 5000, startScroll: 100 }),
+  [{ scroll: 100, offsetInView: 200, destY: 0, h: 500 }]));
+test('startScroll then continues normally', () => assert.deepStrictEqual(
+  planTiles({ top: 300, height: 1500, viewportHeight: 1000, scrollMax: 5000, startScroll: 100 }),
+  [{ scroll: 100, offsetInView: 200, destY: 0, h: 800 }, { scroll: 1100, offsetInView: 0, destY: 800, h: 700 }]));
+test('startScroll ignored when target top is off screen', () => assert.deepStrictEqual(
+  planTiles({ top: 3000, height: 500, viewportHeight: 1000, scrollMax: 5000, startScroll: 100 }),
+  [{ scroll: 3000, offsetInView: 0, destY: 0, h: 500 }]));

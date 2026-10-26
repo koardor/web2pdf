@@ -3,13 +3,15 @@
   const MAX_CANVAS_PX = 16384;       // 单张 canvas 高度上限（设备像素）
   const MAX_PDF_CSS = 19200;         // PDF 单页 14,400pt = 19,200 CSS px
 
-  // 沿一个滚动轴把 [top, top+height) 切成若干块，每块在一次截图里可见
-  function planTiles({ top, height, viewportHeight, scrollMax }) {
+  // 沿一个滚动轴把 [top, top+height) 切成若干块，每块在一次截图里可见。
+  // startScroll：当前滚动位置；目标顶部已在屏幕上时第一块就用它，不移动页面
+  function planTiles({ top, height, viewportHeight, scrollMax, startScroll = null }) {
     const tiles = [];
     const end = top + Math.min(height, MAX_TOTAL_HEIGHT);
     let cursor = top;
     while (cursor < end) {
-      const scroll = Math.max(0, Math.min(cursor, scrollMax));
+      const onScreen = startScroll != null && cursor >= startScroll && cursor < startScroll + viewportHeight;
+      const scroll = onScreen ? startScroll : Math.max(0, Math.min(cursor, scrollMax));
       const h = Math.min(end, scroll + viewportHeight) - cursor;
       if (h <= 0) break;
       tiles.push({ scroll, offsetInView: cursor - scroll, destY: cursor - top, h });
