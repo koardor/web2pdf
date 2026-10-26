@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "web2pdf 网页截图",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "把网页截图保存为 PDF / PNG / JPEG：可见区域、整个网页、选择区域、选择元素。",
   "permissions": ["activeTab", "scripting", "downloads", "storage", "offscreen"],
   "background": { "service_worker": "src/background.js" },
