@@ -90,7 +90,7 @@ async function startCapture(tabId, mode, format) {
     const { tiles, width, height, viewportW } = sel.job;
 
     await ensureOffscreen();
-    await toOffscreen({ type: 'w2p:compose-begin', width, height, format });
+    await toOffscreen({ type: 'w2p:compose-begin', width, height });
     for (let i = 0; i < tiles.length; i++) {
       if (watch.aborted) throw new Error('aborted');
       const stepped = await toTab(tabId, { type: 'w2p:step', index: i });
@@ -103,16 +103,15 @@ async function startCapture(tabId, mode, format) {
     await toTab(tabId, { type: 'w2p:restore' });
     selected = false;
 
-    const { files } = await toOffscreen({ type: 'w2p:compose-end' });
+    const { ok, ...composed } = await toOffscreen({ type: 'w2p:compose-end' });
     if (watch.aborted) {
-      await toOffscreen({ type: 'w2p:revoke', urls: files.map((f) => f.url) });
+      await revokeSegments(composed);
       throw new Error('aborted');
     }
-    for (const f of files) {
-      const filename = Web2pdf.buildFilename({ title: tab.title, url: tab.url, date: startedAt, ext: EXT[format], part: f.part });
-      const id = await chrome.downloads.download({ url: f.url, filename, saveAs: false, conflictAction: 'uniquify' });
-      pendingRevokes.set(id, f.url);
-    }
+    const shot = { tabId, windowId: tab.windowId, mode, format, title: tab.title, url: tab.url, startedAt: startedAt.getTime(), composed };
+    const { preview = true } = await chrome.storage.local.get('preview');
+    if (preview) await openPreview(shot, tab);
+    else await saveShot(shot, format);
   } catch (e) {
     console.warn('web2pdf capture failed:', e);
     if (selected) await chrome.tabs.sendMessage(tabId, { type: 'w2p:restore' }).catch(() => {});
@@ -123,6 +122,70 @@ async function startCapture(tabId, mode, format) {
     busy = false;
   }
 }
+
+function revokeSegments(composed) {
+  return toOffscreen({ type: 'w2p:revoke', urls: composed.segments.map((g) => g.url) }).catch(() => {});
+}
+
+// 按选定格式编码并下载；拼接的中间段随后释放
+async function saveShot(shot, format) {
+  const { files } = await toOffscreen({ type: 'w2p:encode', ...shot.composed, format });
+  for (const f of files) {
+    const filename = Web2pdf.buildFilename({ title: shot.title, url: shot.url, date: new Date(shot.startedAt), ext: EXT[format], part: f.part });
+    const id = await chrome.downloads.download({ url: f.url, filename, saveAs: false, conflictAction: 'uniquify' });
+    pendingRevokes.set(id, f.url);
+  }
+  await revokeSegments(shot.composed);
+}
+
+// 预览：截图信息存在 storage.session（后台进程休眠重启后仍在），预览页按 id 读取
+const sessionKey = (id) => `preview:${id}`;
+
+async function openPreview(shot, tab) {
+  const id = `${shot.startedAt}-${Math.random().toString(36).slice(2, 8)}`;
+  const page = await chrome.tabs.create({
+    url: chrome.runtime.getURL(`src/preview/preview.html?id=${id}`),
+    index: tab.index + 1,
+    openerTabId: tab.id,
+  });
+  await chrome.storage.session.set({ [sessionKey(id)]: { ...shot, id, previewTabId: page.id } });
+}
+
+async function takeShot(id) {
+  const key = sessionKey(id);
+  const shot = (await chrome.storage.session.get(key))[key];
+  if (shot) await chrome.storage.session.remove(key);
+  return shot;
+}
+
+async function onPreviewMessage(msg, previewTabId) {
+  const shot = await takeShot(msg.id);
+  if (!shot) return { ok: false, error: 'expired' };
+  if (msg.type === 'w2p:save') {
+    await saveShot(shot, msg.format);
+    await chrome.storage.local.set({ format: msg.format });
+  } else {
+    await revokeSegments(shot.composed);
+  }
+  await chrome.tabs.remove(previewTabId).catch(() => {});
+  if (msg.type === 'w2p:retake') {
+    await chrome.tabs.update(shot.tabId, { active: true });
+    await chrome.windows.update(shot.windowId, { focused: true }).catch(() => {});
+    startCapture(shot.tabId, shot.mode, shot.format);
+  }
+  return { ok: true };
+}
+
+// 预览标签被直接关掉：释放中间段
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const all = await chrome.storage.session.get(null);
+  for (const shot of Object.values(all)) {
+    if (shot?.previewTabId === tabId) {
+      await chrome.storage.session.remove(sessionKey(shot.id));
+      await revokeSegments(shot.composed);
+    }
+  }
+});
 
 chrome.downloads.onChanged.addListener(({ id, state }) => {
   if (!state || !pendingRevokes.has(id)) return;
@@ -150,6 +213,17 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 });
 
 // 弹出菜单：先确认页面可截，再回复让菜单关闭，然后开始任务
+const PREVIEW_MESSAGES = ['w2p:save', 'w2p:discard', 'w2p:retake'];
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!PREVIEW_MESSAGES.includes(msg?.type)) return;
+  onPreviewMessage(msg, sender.tab?.id).then(reply, (e) => {
+    console.warn('web2pdf preview action failed:', e);
+    reply({ ok: false, error: String(e?.message || e) });
+  });
+  return true;
+});
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg?.type !== 'w2p:start') return;
   (async () => {

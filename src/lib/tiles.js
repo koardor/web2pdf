@@ -45,7 +45,24 @@
     return { dy, dh: Math.round((destY + h) * scale) - dy };
   }
 
-  const api = { MAX_TOTAL_HEIGHT, MAX_CANVAS_PX, planTiles, planSplits, splitLimitCss, normalizeRect, tileDrawRect };
+  // 拼接中间结果：按单张 canvas 上限依次切成若干段（CSS px）
+  function planSegments(height, scale) {
+    const size = Math.floor(MAX_CANVAS_PX / scale);
+    const segs = [];
+    for (let start = 0; start < height; start += size) segs.push({ start, end: Math.min(height, start + size) });
+    return segs;
+  }
+
+  // 把中间段 seg 里与输出条 strip 重叠的设备像素行原样复制过去；取整规则与 tileDrawRect 一致
+  function copyRows(strip, seg, scale) {
+    const r = (v) => Math.round(v * scale);
+    const from = Math.max(r(strip.start), r(seg.start));
+    const to = Math.min(r(strip.end), r(seg.end));
+    if (to <= from) return null;
+    return { srcY: from - r(seg.start), dstY: from - r(strip.start), rows: to - from };
+  }
+
+  const api = { MAX_TOTAL_HEIGHT, MAX_CANVAS_PX, planTiles, planSplits, splitLimitCss, normalizeRect, tileDrawRect, planSegments, copyRows };
   root.Web2pdf = Object.assign(root.Web2pdf || {}, api);
   if (typeof module === 'object' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

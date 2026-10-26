@@ -11,8 +11,11 @@ function showMessage(text) {
 }
 
 async function init() {
-  const { format = 'pdf' } = await chrome.storage.local.get('format');
+  const { format = 'pdf', preview = true } = await chrome.storage.local.get(['format', 'preview']);
   document.querySelector(`input[value="${format}"]`).checked = true;
+  const previewBox = document.querySelector('input[name="preview"]');
+  previewBox.checked = preview;
+  previewBox.addEventListener('change', () => chrome.storage.local.set({ preview: previewBox.checked }));
   document.querySelectorAll('input[name="format"]').forEach((input) =>
     input.addEventListener('change', () => chrome.storage.local.set({ format: input.value })));
 

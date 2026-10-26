@@ -7,4 +7,5 @@ button:hover, button:focus-visible { background: var(--hover); border-color: var
 kbd { color: var(--muted); font: 11px system-ui, sans-serif; }
 .formats { display: flex; justify-content: space-between; margin: 8px 0 0; padding: 6px 4px; border: 0; border-top: 1px solid var(--line); }
 .formats label { display: flex; align-items: center; gap: 3px; cursor: pointer; }
+.toggle { display: flex; align-items: center; gap: 6px; padding: 6px 4px 0; border-top: 1px solid var(--line); cursor: pointer; }
 .msg { margin: 6px 0 0; color: var(--warn); }

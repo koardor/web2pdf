@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>preview harness</title>
+<!-- 用假的 chrome API 打开真实的预览页：先生成几段测试图，再载入 src/preview/preview.html -->
+<script type="module">
+  const seg = (h, from) => {
+    const c = document.createElement('canvas'); c.width = 800; c.height = h;
+    const g = c.getContext('2d');
+    for (let y = 0; y < h; y += 200) {
+      g.fillStyle = ((from + y) / 200) % 2 ? '#3b82f6' : '#f59e0b'; g.fillRect(0, y, 800, 200);
+      g.fillStyle = '#000'; g.font = '60px sans-serif'; g.fillText(String((from + y) / 200 + 1), 20, y + 120);
+    }
+    return c.toDataURL('image/png');
+  };
+  const height = Number(new URLSearchParams(location.search).get('h') || 30000);
+  const segments = [];
+  for (let s = 0; s < height; s += 16384) segments.push({ start: s, end: Math.min(height, s + 16384), url: seg(Math.min(height, s + 16384) - s, s) });
+  const shot = { id: 'x', title: '测试页面', url: 'https://example.com/a', startedAt: Date.now(), format: 'pdf', mode: 'page',
+    composed: { width: 800, height, scale: 1, segments } };
+  const html = await (await fetch('/src/preview/preview.html')).text();
+  const stub = `<base href="/src/preview/"><script>
+    window.sent = [];
+    window.chrome = { storage: { session: { get: async (k) => ({ [k]: ${JSON.stringify(shot)} }) } },
+      runtime: { sendMessage: async (m) => { window.sent.push(m); return { ok: true }; } } };
+  <\/script>`;
+  document.open();
+  document.write(html.replace('<head>', '<head>' + stub).replace('?id=', ''));
+  document.close();
+  history.replaceState(null, '', location.pathname + '?id=x');
+</script>

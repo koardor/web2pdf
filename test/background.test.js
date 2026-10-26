@@ -12,9 +12,19 @@ function event() {
   return { addListener: (f) => fns.push(f), removeListener: (f) => fns.splice(fns.indexOf(f), 1), fns };
 }
 
-function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3, onStep } = {}) {
+// 像 Chrome 一样把消息交给所有监听器，返回 true 的那个负责回复
+function dispatch(chrome, msg, sender) {
+  return new Promise((resolve) => {
+    const handled = chrome.runtime.onMessage.fns.some((fn) => fn(msg, sender, resolve) === true);
+    if (!handled) resolve(undefined);
+  });
+}
+
+function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3, onStep, preview = false } = {}) {
   const log = [];
-  const tab = { id: 7, windowId: 1, url, title, active: true };
+  const tab = { id: 7, windowId: 1, index: 2, url, title, active: true };
+  const session = {};
+  const local = { format: 'png', preview };
   const job = {
     tiles: Array.from({ length: tiles }, (_, i) => ({ pageScroll: i * 100, innerScroll: null, clip: { x: 0, y: 0, w: 10, h: 100 }, destY: i * 100 })),
     width: 10, height: tiles * 100, viewportW: 10,
@@ -24,9 +34,12 @@ function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3
       onMessage: event(),
       getContexts: async () => [],
       getPlatformInfo: async () => ({}),
+      getURL: (p) => `chrome-extension://ext/${p}`,
       sendMessage: async (msg) => {
         log.push(msg.type);
-        if (msg.type === 'w2p:compose-end') return { ok: true, files: [{ url: 'blob:1', part: 1 }, { url: 'blob:2', part: 2 }] };
+        if (msg.type === 'w2p:compose-end') return { ok: true, width: 10, height: 300, scale: 1, segments: [{ start: 0, end: 300, url: 'blob:seg' }] };
+        if (msg.type === 'w2p:encode') { log.push(['encode', msg.format]); return { ok: true, files: [{ url: 'blob:1', part: 1 }, { url: 'blob:2', part: 2 }] }; }
+        if (msg.type === 'w2p:revoke') log.push(['revoke', ...msg.urls]);
         return { ok: true };
       },
     },
@@ -49,6 +62,9 @@ function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3
         return { ok: true };
       },
       captureVisibleTab: async () => { log.push('capture'); return 'data:image/png;base64,AA=='; },
+      create: async (opts) => { log.push(['create', opts.url]); return { id: 99 }; },
+      remove: async (id) => log.push(['remove', id]),
+      update: async (id, props) => log.push(['activate', id, props.active]),
     },
     downloads: {
       onChanged: event(),
@@ -56,7 +72,15 @@ function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3
     },
     action: { setBadgeText: async ({ text }) => log.push(['badge', text]), setBadgeBackgroundColor: async () => {} },
     commands: { onCommand: event() },
-    storage: { local: { get: async () => ({ format: 'png' }) } },
+    windows: { update: async (id) => log.push(['focus', id]) },
+    storage: {
+      local: { get: async () => ({ ...local }), set: async (o) => Object.assign(local, o) },
+      session: {
+        get: async (k) => (k == null ? { ...session } : { [k]: session[k] }),
+        set: async (o) => Object.assign(session, o),
+        remove: async (k) => { delete session[k]; },
+      },
+    },
   };
   const timers = new Set();
   const ctx = {
@@ -69,7 +93,7 @@ function load({ url = 'https://example.com/post?id=1', title = 'Post', tiles = 3
   ctx.importScripts = (...files) => files.forEach((f) => vm.runInContext(fs.readFileSync(path.join(SRC, f), 'utf8'), ctx));
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(SRC, 'background.js'), 'utf8'), ctx);
-  return { ctx, chrome, log, tab };
+  return { ctx, chrome, log, tab, session, local };
 }
 
 test('capture runs select → step/capture per tile → restore → compose → downloads', async () => {
@@ -81,7 +105,7 @@ test('capture runs select → step/capture per tile → restore → compose → 
     'step0', 'capture', 'w2p:compose-tile', 'w2p:progress',
     'step1', 'capture', 'w2p:compose-tile', 'w2p:progress',
     'step2', 'capture', 'w2p:compose-tile', 'w2p:progress',
-    'w2p:restore', 'w2p:compose-end', 'download', 'download',
+    'w2p:restore', 'w2p:compose-end', 'w2p:encode', 'encode', 'download', 'download', 'w2p:revoke', 'revoke',
   ]);
   const names = log.filter((x) => Array.isArray(x) && x[0] === 'download');
   assert.match(names[0][1], /^Post_example\.com_post_id=1_\d{8}-\d{6}_part1\.png$/);
@@ -133,7 +157,7 @@ test('keyboard command uses the stored format', async () => {
 
 test('popup start replies unsupported for browser pages', async () => {
   const { chrome } = load({ url: 'chrome://settings' });
-  const res = await new Promise((resolve) => chrome.runtime.onMessage.fns[0]({ type: 'w2p:start', mode: 'page', format: 'pdf', tabId: 7 }, {}, resolve));
+  const res = await dispatch(chrome, { type: 'w2p:start', mode: 'page', format: 'pdf', tabId: 7 }, {});
   assert.deepStrictEqual({ ...res }, { ok: false, error: 'unsupported' });
 });
 
@@ -148,4 +172,70 @@ test('uses the clip returned by step (actual scroll position)', async () => {
   await ctx.startCapture(7, 'page', 'png');
   assert.strictEqual(sent[0].y, 7);
   assert.ok(log.length > 0);
+});
+
+// 预览页发消息给后台，sender.tab 是预览标签
+const fromPreview = (chrome, msg) => dispatch(chrome, msg, { tab: { id: 99 } });
+const tuples = (log, kind) => log.filter((x) => Array.isArray(x) && x[0] === kind);
+
+test('preview on: opens preview tab, stores the session, downloads nothing', async () => {
+  const { ctx, log, session } = load({ preview: true });
+  await ctx.startCapture(7, 'page', 'pdf');
+  assert.strictEqual(tuples(log, 'download').length, 0);
+  const [[, url]] = tuples(log, 'create');
+  const id = url.match(/src\/preview\/preview\.html\?id=(.+)$/)[1];
+  const saved = session[`preview:${id}`];
+  assert.strictEqual(saved.tabId, 7);
+  assert.strictEqual(saved.mode, 'page');
+  assert.strictEqual(saved.format, 'pdf');
+  assert.strictEqual(saved.composed.segments[0].url, 'blob:seg');
+  assert.strictEqual(saved.previewTabId, 99);
+});
+
+async function openPreview(opts) {
+  const env = load({ preview: true, ...opts });
+  await env.ctx.startCapture(7, 'page', 'pdf');
+  env.id = tuples(env.log, 'create')[0][1].split('id=')[1];
+  env.log.length = 0;
+  return env;
+}
+
+test('save from preview encodes in the chosen format, downloads, cleans up, remembers format', async () => {
+  const { chrome, log, session, local, id } = await openPreview();
+  const res = await fromPreview(chrome, { type: 'w2p:save', id, format: 'jpeg' });
+  assert.strictEqual(res.ok, true);
+  assert.deepStrictEqual(tuples(log, 'encode').map((x) => x[1]), ['jpeg']);
+  assert.match(tuples(log, 'download')[0][1], /^Post_example\.com_post_id=1_\d{8}-\d{6}_part1\.jpg$/);
+  assert.ok(tuples(log, 'revoke').some((x) => x.includes('blob:seg')));
+  assert.ok(tuples(log, 'remove').some((x) => x[1] === 99));
+  assert.strictEqual(session[`preview:${id}`], undefined);
+  assert.strictEqual(local.format, 'jpeg');
+});
+
+test('discard from preview revokes segments and closes the preview', async () => {
+  const { chrome, log, session, id } = await openPreview();
+  await fromPreview(chrome, { type: 'w2p:discard', id });
+  assert.ok(tuples(log, 'revoke').some((x) => x.includes('blob:seg')));
+  assert.ok(tuples(log, 'remove').some((x) => x[1] === 99));
+  assert.strictEqual(tuples(log, 'download').length, 0);
+  assert.strictEqual(session[`preview:${id}`], undefined);
+});
+
+test('closing the preview tab revokes its segments', async () => {
+  const { chrome, log, session, id } = await openPreview();
+  for (const f of chrome.tabs.onRemoved.fns) f(99);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(tuples(log, 'revoke').some((x) => x.includes('blob:seg')));
+  assert.strictEqual(session[`preview:${id}`], undefined);
+});
+
+test('retake returns to the original tab and captures again in the same mode', async () => {
+  const { chrome, log, id } = await openPreview();
+  await fromPreview(chrome, { type: 'w2p:retake', id });
+  // 重新截图在后台异步进行，等它打开新的预览页
+  for (let i = 0; i < 100 && !tuples(log, 'create').length; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(tuples(log, 'activate').some((x) => x[1] === 7));
+  assert.ok(tuples(log, 'remove').some((x) => x[1] === 99));
+  assert.ok(log.includes('w2p:select'));
+  assert.strictEqual(tuples(log, 'create').length, 1);
 });

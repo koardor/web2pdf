@@ -41,3 +41,18 @@ test('startScroll then continues normally', () => assert.deepStrictEqual(
 test('startScroll ignored when target top is off screen', () => assert.deepStrictEqual(
   planTiles({ top: 3000, height: 500, viewportHeight: 1000, scrollMax: 5000, startScroll: 100 }),
   [{ scroll: 3000, offsetInView: 0, destY: 0, h: 500 }]));
+
+const { planSegments, copyRows } = require('../../src/lib/tiles.js');
+test('segments cover height in canvas-sized pieces', () => assert.deepStrictEqual(
+  planSegments(20000, 2), [{ start: 0, end: 8192 }, { start: 8192, end: 16384 }, { start: 16384, end: 20000 }]));
+test('single segment when short', () => assert.deepStrictEqual(planSegments(500, 1.25), [{ start: 0, end: 500 }]));
+test('copyRows: overlap in device rows', () => assert.deepStrictEqual(
+  copyRows({ start: 100, end: 300 }, { start: 250, end: 500 }, 1.25),
+  { srcY: 0, dstY: 313 - 125, rows: 375 - 313 }));
+test('copyRows: no overlap', () => assert.strictEqual(copyRows({ start: 0, end: 100 }, { start: 100, end: 200 }, 2), null));
+test('copyRows: adjacent segments fill a strip without gap', () => {
+  const strip = { start: 0, end: 1000 }, s = 1.25;
+  const a = copyRows(strip, { start: 0, end: 333 }, s), b = copyRows(strip, { start: 333, end: 1000 }, s);
+  assert.strictEqual(a.dstY + a.rows, b.dstY);
+  assert.strictEqual(b.dstY + b.rows, Math.round(1000 * s));
+});
