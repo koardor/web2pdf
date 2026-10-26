@@ -132,6 +132,23 @@ chrome.downloads.onChanged.addListener(({ id, state }) => {
   toOffscreen({ type: 'w2p:revoke', urls: [url] }).catch(() => {});
 });
 
+// 快捷键：用上次在弹出菜单里选的格式
+const COMMAND_MODES = {
+  'capture-visible': 'visible',
+  'capture-page': 'page',
+  'capture-region': 'region',
+  'capture-element': 'element',
+};
+
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  const mode = COMMAND_MODES[command];
+  if (!mode) return;
+  const target = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  if (!target) return;
+  const { format = 'pdf' } = await chrome.storage.local.get('format');
+  startCapture(target.id, mode, format);
+});
+
 // 弹出菜单：先确认页面可截，再回复让菜单关闭，然后开始任务
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg?.type !== 'w2p:start') return;
