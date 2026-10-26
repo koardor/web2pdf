@@ -8,6 +8,8 @@ const INCLUDE = ['manifest.json', 'icons', 'vendor', 'src'];
 
 fs.rmSync(DIST, { recursive: true, force: true });
 for (const item of INCLUDE) fs.cpSync(path.join(ROOT, item), path.join(DIST, item), { recursive: true });
+// 给使用者的说明随插件一起分发
+fs.copyFileSync(path.join(ROOT, 'docs', '安装和使用指南.md'), path.join(DIST, '安装和使用指南.md'));
 
 // 检查 manifest 和各页面引用的文件都在
 const manifest = JSON.parse(fs.readFileSync(path.join(DIST, 'manifest.json'), 'utf8'));
