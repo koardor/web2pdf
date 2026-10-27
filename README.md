@@ -72,3 +72,7 @@ docs/                  使用指南、设计文档、验收清单
 ```
 
 在 Edge 里手动测试的项目见 [验收清单](docs/验收清单.md)。
+
+## 许可证
+
+[MIT](LICENSE)。`vendor/jspdf.umd.min.js` 是 jsPDF，同样使用 MIT 许可证，版权归其作者所有。
