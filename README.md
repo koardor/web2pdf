@@ -36,6 +36,7 @@ npm test                 # 纯逻辑与后台调度的自动测试
 node tools/serve.js      # 本地服务 http://localhost:8000/ ，打开 test/pages/ 下的测试页
 node tools/make-icons.js # 重新生成图标
 node tools/build.js      # 生成只含插件运行文件的 dist/，用于安装或分发
+python tools/guide_pdf.py # 改了安装和使用指南后，重新生成它的 PDF 版
 ```
 
 `test/harness/` 里是在普通网页中模拟扩展环境的测试工具（拼接、页面脚本）。
